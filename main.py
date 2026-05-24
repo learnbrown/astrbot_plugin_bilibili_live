@@ -68,7 +68,8 @@ class BilibiliLivePlugin(Star):
                 f"======================\n"
                 f"UP主: {uname} (UID: {uid})\n"
                 f"标题: {title}\n"
-                f"状态: {live_status}"
+                f"状态: {live_status}\n"
+                f"传送门: https://live.bilibili.com/{room_id}"
             )
             
             yield event.plain_result(result_text)
