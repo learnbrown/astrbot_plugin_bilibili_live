@@ -3,14 +3,15 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 import httpx
 
-@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.1.3")
+@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.2.1")
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         # 初始化一个全局的 AsyncClient，复用连接池提升性能
         # 别忘了加上 User-Agent 伪装
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://search.bilibili.com/"
         }
         self.client = httpx.AsyncClient(headers=self.headers, timeout=5.0)
 
@@ -86,3 +87,42 @@ class BilibiliLivePlugin(Star):
         """插件销毁时关闭 httpx 客户端，释放连接池"""
         await self.client.aclose()
         logger.info("Bilibili 直播间查询插件已卸载。")
+
+    @filter.command("up")
+    async def get_up_info(self, event: AstrMessageEvent, uid: int):
+        """查询 B 站 UP 主信息。使用方法: /up <UID>"""
+        user_url = f"https://api.bilibili.com/x/web-interface/card?mid={uid}"
+        try:
+            response = await self.client.get(user_url)
+            response.raise_for_status()
+            res_json = response.json()
+            
+            if res_json.get("code") != 0:
+                yield event.plain_result(f"查询失败，API 报错: {res_json.get('message')}")
+                return
+
+            data = res_json.get("data", {}).get("card", {})
+            uname = data.get("name", "未知UP主")
+            sign = data.get("sign", "无签名")
+            level = data.get("level_info", {}).get("current_level", "未知等级")
+            fans = data.get("fans", "未知粉丝数")
+
+            result_text = (
+                f"B站UP主信息\n"
+                f"======================\n"
+                f"昵称: {uname}\n"
+                f"签名: {sign}\n"
+                f"等级: {level}\n"
+                f"粉丝数: {fans}\n"
+                f"个人主页: https://space.bilibili.com/{uid}"
+            )
+            
+            yield event.plain_result(result_text)
+
+        except httpx.TimeoutException:
+            yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
+        except httpx.HTTPStatusError as e:
+            yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
+        except Exception as e:
+            logger.error(f"插件运行出错: {str(e)}")
+            yield event.plain_result("发生未知错误，请检查日志。")
