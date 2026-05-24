@@ -1,6 +1,6 @@
 # astrbot-plugin-bilibili-live
 
-Bilibili Live 插件
+Bilibili Live Info 插件
 
 `/live <room_id>` 查询目标直播间状态
 

@@ -3,7 +3,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 import httpx
 
-@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.1.2")
+@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.1.3")
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
