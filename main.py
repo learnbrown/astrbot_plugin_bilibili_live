@@ -1,4 +1,4 @@
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 import httpx
@@ -170,7 +170,7 @@ class BilibiliLivePlugin(Star):
     @filter.command("sub")
     async def subscribe_room(self, event: AstrMessageEvent, room_id: int):
         """订阅B站直播间。使用方法: /sub <房间号>"""
-        session_id = event.unified_msg_job_id # 获取当前聊天场景的唯一ID（群或私聊），用于后续精准推送通知
+        session_id = event.unified_msg_origin # 获取当前聊天场景的唯一ID（群或私聊），用于后续精准推送通知
         room_str = str(room_id)
 
         # 如果已经订阅过，检查当前聊天场景是否在通知列表中
@@ -222,7 +222,7 @@ class BilibiliLivePlugin(Star):
     @filter.command("unsub")
     async def unsubscribe_room(self, event: AstrMessageEvent, room_id: int):
         """取消订阅B站直播间。使用方法: /unsub <房间号>"""
-        session_id = event.unified_msg_job_id
+        session_id = event.unified_msg_origin
         room_str = str(room_id)
 
         if room_str not in self.subscribed_rooms or session_id not in self.subscribed_rooms[room_str]["targets"]:
@@ -240,7 +240,7 @@ class BilibiliLivePlugin(Star):
     @filter.command("sub_list")
     async def list_subscriptions(self, event: AstrMessageEvent):
         """查看本聊天框已订阅的直播间列表"""
-        session_id = event.unified_msg_job_id
+        session_id = event.unified_msg_origin
         lines = []
 
         for room_id, info in self.subscribed_rooms.items():
@@ -288,12 +288,12 @@ class BilibiliLivePlugin(Star):
                                 f"直播间标题: {title}\n"
                                 f"传送门: https://live.bilibili.com/{room_id}"
                             )
-                            
+                            message_chain = MessageChain().message(notice_text)
                             # 循环向所有订阅了该房间的聊天窗口发送通知
                             for target_session_id in info["targets"]:
                                 try:
                                     # 利用 AstrBot 内置的 context.send_message 向指定 session 发送主动消息
-                                    await self.context.send_message(target_session_id, notice_text)
+                                    await self.context.send_message(target_session_id, message_chain)
                                 except Exception as send_err:
                                     logger.error(f"发送开播通知失败: {send_err}")
 
