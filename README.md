@@ -65,4 +65,4 @@
 
 ## 📝 许可证
 
-[MIT License](https://www.google.com/search?q=LICENSE)
+[MIT License](https://en.wikipedia.org/wiki/MIT_License)

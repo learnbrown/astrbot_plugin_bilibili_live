@@ -13,7 +13,7 @@ from astrbot.api.star import Context, Star, register
     "bilibili_live_subscription",
     "ReinerBrown",
     "通过房间号订阅B站直播间，开播后将会收到通知",
-    "1.3.5",
+    "1.3.6",
 )
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
@@ -65,148 +65,6 @@ class BilibiliLivePlugin(Star):
         await self.client.aclose()
 
         logger.info("Bilibili 直播间查询插件已卸载。")
-
-    # 注册 /live 指令，接收一个 int 类型的 room_id 参数
-    @filter.command("live")
-    async def get_live_info(self, event: AstrMessageEvent, room_id: int):
-        """查询 B 站直播间状态。使用方法: /live <房间号>"""
-
-        # 提示用户正在查询（对于耗时网络请求，先给个反馈体验更好，可根据喜好删留）
-        # yield event.plain_result(f"正在查询直播间 {room_id} 的信息，请稍候...")
-
-        # 1. 尝试调用第一个接口获取直播状态和标题
-        info_url = "https://api.live.bilibili.com/room/v1/Room/get_info"
-
-        try:
-            response = await self.client.get(info_url, params={"room_id": room_id})
-            response.raise_for_status()
-            res_json = response.json()
-
-            if res_json.get("code") != 0:
-                yield event.plain_result(
-                    # f"查询失败，API 报错: {res_json.get('message')}"
-                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
-                )
-                return
-
-            data = res_json.get("data", {})
-            title = data.get("title", "无标题")
-            status_code = data.get("live_status", 0)
-            uid = data.get("uid")
-
-            # 状态映射
-            status_map = {0: "未开播", 1: "直播中", 2: "轮播中"}
-            live_status = status_map.get(status_code, "未知状态")
-
-            # 2. 如果成功拿到 uid，我们可以顺便请求第二个接口获取主播昵称
-            uname = "未知主播"
-            if uid:
-                user_url = f"https://api.bilibili.com/x/web-interface/card?mid={uid}"
-                try:
-                    # 获取主播昵称名片
-                    user_resp = await self.client.get(user_url)
-                    if user_resp.status_code == 200:
-                        user_json = user_resp.json()
-                        if user_json.get("code") == 0:
-                            uname = (
-                                user_json.get("data", {})
-                                .get("card", {})
-                                .get("name", "未知主播")
-                            )
-                except Exception:
-                    # 获取昵称失败不影响大局，静默处理即可
-                    pass
-
-            # 3. 组装最终结果文本发送给用户
-            # result_text = (
-            #     f"B站直播间 {room_id} 信息\n"
-            #     f"======================\n"
-            #     f"UP主: {uname} (UID: {uid})\n"
-            #     f"标题: {title}\n"
-            #     f"状态: {live_status}\n"
-            #     f"传送门: https://live.bilibili.com/{room_id}"
-            # )
-            result_text = (
-                f"### 📺 B站直播间 {room_id} 信息\n"
-                f"- **UP主**: {uname} (UID: {uid})\n"
-                f"- **标题**: {title}\n"
-                f"- **状态**: {live_status}\n\n"
-                f"[🔗 直播间传送门](https://live.bilibili.com/{room_id})"
-            )
-
-            yield event.plain_result(result_text)
-
-        except httpx.TimeoutException:
-            # yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
-            yield event.plain_result(
-                "⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。"
-            )
-        except httpx.HTTPStatusError as e:
-            # yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
-            yield event.plain_result(
-                f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}"
-            )
-        except Exception as e:
-            logger.error(f"插件运行出错: {str(e)}")
-            # yield event.plain_result("发生未知错误，请检查日志。")
-            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
-
-    @filter.command("up")
-    async def get_up_info(self, event: AstrMessageEvent, uid: int):
-        """查询 B 站 UP 主信息。使用方法: /up <UID>"""
-        user_url = f"https://api.bilibili.com/x/web-interface/card?mid={uid}"
-        try:
-            response = await self.client.get(user_url)
-            response.raise_for_status()
-            res_json = response.json()
-
-            if res_json.get("code") != 0:
-                yield event.plain_result(
-                    # f"查询失败，API 报错: {res_json.get('message')}"
-                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
-                )
-                return
-
-            data = res_json.get("data", {}).get("card", {})
-            uname = data.get("name", "未知UP主")
-            sign = data.get("sign", "无签名")
-            level = data.get("level_info", {}).get("current_level", "未知等级")
-            fans = data.get("fans", "未知粉丝数")
-
-            # result_text = (
-            #     f"B站UP主信息\n"
-            #     f"======================\n"
-            #     f"昵称: {uname}\n"
-            #     f"签名: {sign}\n"
-            #     f"等级: {level}\n"
-            #     f"粉丝数: {fans}\n"
-            #     f"个人主页: https://space.bilibili.com/{uid}"
-            # )
-            result_text = (
-                f"### 👤 B站UP主信息\n"
-                f"- **昵称**: {uname}\n"
-                f"- **等级**: Lv.{level}\n"
-                f"- **粉丝数**: {fans}\n"
-                f"- **签名**: {sign}\n\n"
-                f"[🔗 前往个人主页](https://space.bilibili.com/{uid})"
-            )
-
-            yield event.plain_result(result_text)
-
-        except httpx.TimeoutException:
-            # yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
-            yield event.plain_result(
-                "⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。"
-            )
-        except httpx.HTTPStatusError as e:
-            # yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
-            yield event.plain_result(
-                f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}"
-            )
-        except Exception as e:
-            logger.error(f"插件运行出错: {str(e)}")
-            # yield event.plain_result("发生未知错误，请检查日志。")
-            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
 
     def load_data(self):
         """从 JSON 文件加载订阅数据"""
@@ -268,7 +126,7 @@ class BilibiliLivePlugin(Star):
 
             data = res_json.get("data", {})
             uid = data.get("uid")
-            # last_status = data.get("live_status", 0) # 0未开播，1直播，2轮播
+            # 初始状态默认为 0（未开播），后续轮询会更新这个状态
             last_status = 0
 
             # 获取昵称
@@ -336,11 +194,8 @@ class BilibiliLivePlugin(Star):
 
         for room_id, info in self.subscribed_rooms.items():
             if session_id in info["targets"]:
-                # 1. 升级状态文本，加入对应的状态 emoji
                 status_str = "🟢 直播中" if info["last_status"] == 1 else "🔴 未开播"
 
-                # 2. 升级为标准 Markdown 列表项格式
-                # 使用 [主播名](直播间链接) 让列表里的每个主播名字都可以直接点击跳转！
                 lines.append(
                     f"- **[{info['uname']}](https://live.bilibili.com/{room_id})** `(房间号: {room_id})` | {status_str}"
                 )
@@ -391,14 +246,6 @@ class BilibiliLivePlugin(Star):
 
                         # 🌟 核心判断：如果上次是 0 (未开播) 或 2 (轮播)，这次变成了 1 (直播中) -> 触发开播提醒
                         if info["last_status"] != 1 and current_status == 1:
-                            # notice_text = (
-                            #     f"【直播提醒】您订阅的Up主开播了\n"
-                            #     f"=========================\n"
-                            #     f"Up主: {info['uname']}\n"
-                            #     f"直播间标题: {title}\n"
-                            #     f"传送门: https://live.bilibili.com/{room_id}"
-                            # )
-
                             notice_text = (
                                 f"### 🔔 【直播提醒】您订阅的UP主开播啦！\n"
                                 f"- **UP主**: {info['uname']}\n"
@@ -439,3 +286,118 @@ class BilibiliLivePlugin(Star):
             except asyncio.CancelledError:
                 logger.info("[B站直播轮询] 轮询任务收到取消信号，正在退出...")
                 break
+
+    # 注册 /live 指令，接收一个 int 类型的 room_id 参数
+    @filter.command("live")
+    async def get_live_info(self, event: AstrMessageEvent, room_id: int):
+        """查询 B 站直播间状态。使用方法: /live <房间号>"""
+
+        # 尝试调用获取直播状态和标题
+        info_url = "https://api.live.bilibili.com/room/v1/Room/get_info"
+
+        try:
+            response = await self.client.get(info_url, params={"room_id": room_id})
+            response.raise_for_status()
+            res_json = response.json()
+
+            if res_json.get("code") != 0:
+                yield event.plain_result(
+                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
+                )
+                return
+
+            data = res_json.get("data", {})
+            title = data.get("title", "无标题")
+            status_code = data.get("live_status", 0)
+            uid = data.get("uid")
+
+            # 状态映射
+            status_map = {0: "未开播", 1: "直播中", 2: "轮播中"}
+            live_status = status_map.get(status_code, "未知状态")
+
+            # 如果成功拿到 uid，我们可以顺便请求第二个接口获取主播昵称
+            uname = "未知主播"
+            if uid:
+                user_url = f"https://api.bilibili.com/x/web-interface/card?mid={uid}"
+                try:
+                    # 获取主播昵称名片
+                    user_resp = await self.client.get(user_url)
+                    if user_resp.status_code == 200:
+                        user_json = user_resp.json()
+                        if user_json.get("code") == 0:
+                            uname = (
+                                user_json.get("data", {})
+                                .get("card", {})
+                                .get("name", "未知主播")
+                            )
+                except Exception:
+                    # 获取昵称失败不影响大局，静默处理即可
+                    pass
+
+            result_text = (
+                f"### 📺 B站直播间 {room_id} 信息\n"
+                f"- **UP主**: {uname} (UID: {uid})\n"
+                f"- **标题**: {title}\n"
+                f"- **状态**: {live_status}\n\n"
+                f"[🔗 直播间传送门](https://live.bilibili.com/{room_id})"
+            )
+
+            yield event.plain_result(result_text)
+
+        except httpx.TimeoutException:
+            yield event.plain_result(
+                "⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。"
+            )
+        except httpx.HTTPStatusError as e:
+            yield event.plain_result(
+                f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}"
+            )
+        except Exception as e:
+            logger.error(f"插件运行出错: {str(e)}")
+            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
+
+    @filter.command("up")
+    async def get_up_info(self, event: AstrMessageEvent, uid: int):
+        """查询 B 站 UP 主信息。使用方法: /up <UID>"""
+
+        user_url = f"https://api.bilibili.com/x/web-interface/card?mid={uid}"
+
+        try:
+            response = await self.client.get(user_url)
+            response.raise_for_status()
+            res_json = response.json()
+
+            if res_json.get("code") != 0:
+                yield event.plain_result(
+                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
+                )
+                return
+
+            data = res_json.get("data", {}).get("card", {})
+            uname = data.get("name", "未知UP主")
+            sign = data.get("sign", "无签名")
+            level = data.get("level_info", {}).get("current_level", "未知等级")
+            fans = data.get("fans", "未知粉丝数")
+
+            result_text = (
+                f"### 👤 B站UP主信息\n"
+                f"- **昵称**: {uname}\n"
+                f"- **等级**: Lv.{level}\n"
+                f"- **粉丝数**: {fans}\n"
+                f"- **签名**: {sign}\n\n"
+                f"[🔗 前往个人主页](https://space.bilibili.com/{uid})"
+            )
+
+            yield event.plain_result(result_text)
+
+        except httpx.TimeoutException:
+            yield event.plain_result(
+                "⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。"
+            )
+        except httpx.HTTPStatusError as e:
+            yield event.plain_result(
+                f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}"
+            )
+        except Exception as e:
+            logger.error(f"插件运行出错: {str(e)}")
+            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
