@@ -9,12 +9,11 @@ from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
 
 
-@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.3.3")
+@register("bilibili_live_viewer", "ReinerBrown", "通过房间号订阅B站直播间，开播后将会收到通知", "1.3.4")
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         # 初始化一个全局的 AsyncClient，复用连接池提升性能
-        # 别忘了加上 User-Agent 伪装
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "https://search.bilibili.com/",
@@ -80,7 +79,8 @@ class BilibiliLivePlugin(Star):
 
             if res_json.get("code") != 0:
                 yield event.plain_result(
-                    f"查询失败，API 报错: {res_json.get('message')}"
+                    # f"查询失败，API 报错: {res_json.get('message')}"
+                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
                 )
                 return
 
@@ -113,24 +113,34 @@ class BilibiliLivePlugin(Star):
                     pass
 
             # 3. 组装最终结果文本发送给用户
+            # result_text = (
+            #     f"B站直播间 {room_id} 信息\n"
+            #     f"======================\n"
+            #     f"UP主: {uname} (UID: {uid})\n"
+            #     f"标题: {title}\n"
+            #     f"状态: {live_status}\n"
+            #     f"传送门: https://live.bilibili.com/{room_id}"
+            # )
             result_text = (
-                f"B站直播间 {room_id} 信息\n"
-                f"======================\n"
-                f"UP主: {uname} (UID: {uid})\n"
-                f"标题: {title}\n"
-                f"状态: {live_status}\n"
-                f"传送门: https://live.bilibili.com/{room_id}"
+                f"### 📺 B站直播间 {room_id} 信息\n"
+                f"- **UP主**: {uname} (UID: {uid})\n"
+                f"- **标题**: {title}\n"
+                f"- **状态**: {live_status}\n\n"
+                f"[🔗 点击前往直播间](https://live.bilibili.com/{room_id})"
             )
 
             yield event.plain_result(result_text)
 
         except httpx.TimeoutException:
-            yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
+            # yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
+            yield event.plain_result("⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。")
         except httpx.HTTPStatusError as e:
-            yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
+            # yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
+            yield event.plain_result(f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}")
         except Exception as e:
             logger.error(f"插件运行出错: {str(e)}")
-            yield event.plain_result("发生未知错误，请检查日志。")
+            # yield event.plain_result("发生未知错误，请检查日志。")
+            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
 
     @filter.command("up")
     async def get_up_info(self, event: AstrMessageEvent, uid: int):
@@ -143,7 +153,8 @@ class BilibiliLivePlugin(Star):
 
             if res_json.get("code") != 0:
                 yield event.plain_result(
-                    f"查询失败，API 报错: {res_json.get('message')}"
+                    # f"查询失败，API 报错: {res_json.get('message')}"
+                    f"❌ **查询失败**\n> API 报错: {res_json.get('message')}"
                 )
                 return
 
@@ -153,25 +164,36 @@ class BilibiliLivePlugin(Star):
             level = data.get("level_info", {}).get("current_level", "未知等级")
             fans = data.get("fans", "未知粉丝数")
 
+            # result_text = (
+            #     f"B站UP主信息\n"
+            #     f"======================\n"
+            #     f"昵称: {uname}\n"
+            #     f"签名: {sign}\n"
+            #     f"等级: {level}\n"
+            #     f"粉丝数: {fans}\n"
+            #     f"个人主页: https://space.bilibili.com/{uid}"
+            # )
             result_text = (
-                f"B站UP主信息\n"
-                f"======================\n"
-                f"昵称: {uname}\n"
-                f"签名: {sign}\n"
-                f"等级: {level}\n"
-                f"粉丝数: {fans}\n"
-                f"个人主页: https://space.bilibili.com/{uid}"
-            )
+            f"### 👤 B站UP主信息\n"
+            f"- **昵称**: {uname}\n"
+            f"- **等级**: Lv.{level}\n"
+            f"- **粉丝数**: {fans}\n"
+            f"- **签名**: {sign}\n\n"
+            f"[🔗 前往个人主页](https://space.bilibili.com/{uid})"
+        )
 
             yield event.plain_result(result_text)
 
         except httpx.TimeoutException:
-            yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
+            # yield event.plain_result("请求超时，B站服务器可能开小差了，请稍后再试。")
+            yield event.plain_result("⚠️ **请求超时**\n> B站服务器可能开小差了，请稍后再试。")
         except httpx.HTTPStatusError as e:
-            yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
+            # yield event.plain_result(f"网络请求异常，状态码: {e.response.status_code}")
+            yield event.plain_result(f"⚠️ **网络请求异常**\n> 状态码: {e.response.status_code}")
         except Exception as e:
             logger.error(f"插件运行出错: {str(e)}")
-            yield event.plain_result("发生未知错误，请检查日志。")
+            # yield event.plain_result("发生未知错误，请检查日志。")
+            yield event.plain_result("❌ **发生未知错误**\n> 请检查机器人后台日志。")
 
     def load_data(self):
         """从 JSON 文件加载订阅数据"""
@@ -203,16 +225,17 @@ class BilibiliLivePlugin(Star):
         # 如果已经订阅过，检查当前聊天场景是否在通知列表中
         if room_str in self.subscribed_rooms:
             if session_id in self.subscribed_rooms[room_str]["targets"]:
-                yield event.plain_result(f"已经订阅过直播间 {room_id}")
+                yield event.plain_result(f"ℹ️ **重复订阅**\n> 您已经订阅过直播间 {room_id} 了。")
                 return
             else:
                 self.subscribed_rooms[room_str]["targets"].append(session_id)
                 self.save_data()
-                yield event.plain_result(f"成功订阅直播间 {room_id}")
+                yield event.plain_result(f"✅ **订阅成功**\n> 已将直播间 {room_id} 加入通知列表。")
                 return
 
         # 如果是全新的房间号，先请求一次获取主播名字和当前状态
-        yield event.plain_result(f"正在验证直播间 {room_id} 的信息...")
+        yield event.plain_result(f"⏳ **正在验证信息**\n> 正在获取直播间 {room_id} 的数据...")
+        
         info_url = "https://api.live.bilibili.com/room/v1/Room/get_info"
 
         try:
@@ -220,7 +243,7 @@ class BilibiliLivePlugin(Star):
             res_json = resp.json()
             if res_json.get("code") != 0:
                 yield event.plain_result(
-                    f"订阅失败，B站API报错: {res_json.get('message')}"
+                    f"❌ **订阅失败**\n> B站API报错: {res_json.get('message')}"
                 )
                 return
 
@@ -250,11 +273,11 @@ class BilibiliLivePlugin(Star):
             }
             self.save_data()
             yield event.plain_result(
-                f"成功订阅主播 「{uname}」 (房间号: {room_id})！开播时将会收到通知。"
+                f"✅ **订阅成功**\n> 成功订阅UP主 **{uname}** (房间号: {room_id})\n> 开播时您将会收到通知！"
             )
 
         except Exception as e:
-            yield event.plain_result(f"订阅失败，网络请求异常: {str(e)}")
+            yield event.plain_result(f"❌ **订阅失败**\n> 网络请求异常: {str(e)}")
 
     @filter.command("unsub")
     async def unsubscribe_room(self, event: AstrMessageEvent, room_id: int):
@@ -266,7 +289,7 @@ class BilibiliLivePlugin(Star):
             room_str not in self.subscribed_rooms
             or session_id not in self.subscribed_rooms[room_str]["targets"]
         ):
-            yield event.plain_result(f"当前聊天框并没有订阅过房间号 {room_id}。")
+            yield event.plain_result(f"❓ **未找到记录**\n> 当前聊天框并没有订阅过房间号 {room_id}。")
             return
 
         self.subscribed_rooms[room_str]["targets"].remove(session_id)
@@ -275,7 +298,7 @@ class BilibiliLivePlugin(Star):
             self.subscribed_rooms.pop(room_str)
 
         self.save_data()
-        yield event.plain_result(f"成功取消订阅直播间 {room_id}。")
+        yield event.plain_result(f"➖ **取消订阅**\n> 成功取消对直播间 {room_id} 的订阅。")
 
     @filter.command("sub_list", aliases=["subs", "subscriptions", "sublist"])
     async def list_subscriptions(self, event: AstrMessageEvent):
@@ -283,15 +306,24 @@ class BilibiliLivePlugin(Star):
         session_id = event.unified_msg_origin
         lines = []
 
+        # for room_id, info in self.subscribed_rooms.items():
+        #     if session_id in info["targets"]:
+        #         status_str = "直播中" if info["last_status"] == 1 else "未开播"
+        #         lines.append(f"- {info['uname']} ({room_id}) [{status_str}]")
+        
         for room_id, info in self.subscribed_rooms.items():
             if session_id in info["targets"]:
-                status_str = "直播中" if info["last_status"] == 1 else "未开播"
-                lines.append(f"- {info['uname']} ({room_id}) [{status_str}]")
+                # 1. 升级状态文本，加入对应的状态 emoji
+                status_str = "🟢 直播中" if info["last_status"] == 1 else "🔴 未开播"
+                
+                # 2. 升级为标准 Markdown 列表项格式
+                # 使用 [主播名](直播间链接) 让列表里的每个主播名字都可以直接点击跳转！
+                lines.append(f"- **[{info['uname']}](https://live.bilibili.com/{room_id})** `(房间号: {room_id})` | {status_str}")
 
         if not lines:
-            yield event.plain_result("当前没有订阅任何直播间。使用 /sub <房间号> 订阅")
+            yield event.plain_result("📝 **当前暂无订阅**\n> 💡 提示：请使用 `/sub <房间号>` 来添加直播间订阅。")
         else:
-            yield event.plain_result("当前已订阅的直播间：\n" + "\n".join(lines))
+            yield event.plain_result("### 📋 当前已订阅的直播间\n" + "\n".join(lines))
 
     # ================= 后台轮询逻辑 =================
 
@@ -332,12 +364,19 @@ class BilibiliLivePlugin(Star):
 
                         # 🌟 核心判断：如果上次是 0 (未开播) 或 2 (轮播)，这次变成了 1 (直播中) -> 触发开播提醒
                         if info["last_status"] != 1 and current_status == 1:
+                            # notice_text = (
+                            #     f"【直播提醒】您订阅的Up主开播了\n"
+                            #     f"=========================\n"
+                            #     f"Up主: {info['uname']}\n"
+                            #     f"直播间标题: {title}\n"
+                            #     f"传送门: https://live.bilibili.com/{room_id}"
+                            # )
+
                             notice_text = (
-                                f"【直播提醒】您订阅的Up主开播了\n"
-                                f"=========================\n"
-                                f"Up主: {info['uname']}\n"
-                                f"直播间标题: {title}\n"
-                                f"传送门: https://live.bilibili.com/{room_id}"
+                                f"### 🔔 【直播提醒】您订阅的UP主开播啦！\n"
+                                f"- **UP主**: {info['uname']}\n"
+                                f"- **直播间标题**: {title}\n\n"
+                                f"[🚀 点击立即观看](https://live.bilibili.com/{room_id})"
                             )
                             message_chain = MessageChain().message(notice_text)
                             # 循环向所有订阅了该房间的聊天窗口发送通知
