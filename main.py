@@ -167,7 +167,7 @@ class BilibiliLivePlugin(Star):
         except Exception as e:
             logger.error(f"保存订阅数据失败: {e}")
 
-    @filter.command("sub")
+    @filter.command("sub", aliases=["subscribe"])
     async def subscribe_room(self, event: AstrMessageEvent, room_id: int):
         """订阅B站直播间。使用方法: /sub <房间号>"""
         session_id = event.unified_msg_origin # 获取当前聊天场景的唯一ID（群或私聊），用于后续精准推送通知
@@ -197,7 +197,8 @@ class BilibiliLivePlugin(Star):
             
             data = res_json.get("data", {})
             uid = data.get("uid")
-            last_status = data.get("live_status", 0) # 0未开播，1直播，2轮播
+            # last_status = data.get("live_status", 0) # 0未开播，1直播，2轮播
+            last_status = 0
             
             # 获取昵称
             uname = "未知主播"
@@ -237,7 +238,7 @@ class BilibiliLivePlugin(Star):
         self.save_data()
         yield event.plain_result(f"成功取消订阅直播间 {room_id}。")
 
-    @filter.command("sub_list")
+    @filter.command("sub_list", aliases=["subs", "subscriptions", "sublist"])
     async def list_subscriptions(self, event: AstrMessageEvent):
         """查看本聊天框已订阅的直播间列表"""
         session_id = event.unified_msg_origin
