@@ -6,7 +6,7 @@ import asyncio
 import os
 import json
 
-@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.3.1")
+@register("bilibili_live_viewer", "ReinerBrown", "通过房间号查询B站直播间状态", "1.3.2")
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -108,6 +108,17 @@ class BilibiliLivePlugin(Star):
         """插件销毁时关闭 httpx 客户端，释放连接池"""
         await self.client.aclose()
         logger.info("Bilibili 直播间查询插件已卸载。")
+
+        if self.polling_task:
+            self.polling_task.cancel()
+            try:
+                # 等待任务彻底结束，防止抛出未处理的 CancelledError 异常
+                await self.polling_task
+            except asyncio.CancelledError:
+                pass
+            
+        # 最后关闭网络连接池
+        await self.client.aclose()
 
     @filter.command("up")
     async def get_up_info(self, event: AstrMessageEvent, uid: int):
@@ -262,11 +273,19 @@ class BilibiliLivePlugin(Star):
         await asyncio.sleep(10)
         
         while True:
+            if self.client.is_closed:
+                logger.warning("[B站直播轮询] 检测到 client 已关闭，轮询任务自动退出。")
+                break
+
             if self.subscribed_rooms:
                 logger.info(f"[B站直播轮询] 开始检查 {len(self.subscribed_rooms)} 个直播间...")
                 info_url = "https://api.live.bilibili.com/room/v1/Room/get_info"
                 
                 for room_id, info in list(self.subscribed_rooms.items()):
+                    
+                    if self.client.is_closed:
+                           break
+                    
                     try:
                         resp = await self.client.get(info_url, params={"room_id": int(room_id)})
                         if resp.status_code != 200:
@@ -302,12 +321,19 @@ class BilibiliLivePlugin(Star):
                         if info["last_status"] != current_status:
                             self.subscribed_rooms[room_id]["last_status"] = current_status
                             self.save_data()
-
+                    except RuntimeError as e:
+                        # 捕捉 client 已经关闭的运行时异常，直接优雅地结束
+                        logger.warning(f"[B站直播轮询] 捕获到客户端运行时异常(可能已被关闭): {e}")
+                        break
                     except Exception as e:
                         logger.error(f"轮询直播间 {room_id} 出错: {e}")
                     
                     # 每次请求完一个房间歇 1 秒，防止短时间请求太猛被B站封IP
                     await asyncio.sleep(1)
 
-            # 🍃 每隔 3分钟（180秒）进行新一轮的主循环轮询（可根据需要自行调整）
-            await asyncio.sleep(180)
+            try:
+                await asyncio.sleep(180)
+            except asyncio.CancelledError:
+                # 🌟 修复点 3：响应 terminate 的 cancel 信号，优雅退出
+                logger.info("[B站直播轮询] 轮询任务收到取消信号，正在退出...")
+                break
