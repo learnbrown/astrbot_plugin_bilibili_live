@@ -13,7 +13,7 @@ from astrbot.api.star import Context, Star, register
     "bilibili_live_subscription",
     "ReinerBrown",
     "通过房间号订阅B站直播间，开播后将会收到通知",
-    "1.3.6",
+    "1.3.7",
 )
 class BilibiliLivePlugin(Star):
     def __init__(self, context: Context):
@@ -187,11 +187,6 @@ class BilibiliLivePlugin(Star):
         session_id = event.unified_msg_origin
         lines = []
 
-        # for room_id, info in self.subscribed_rooms.items():
-        #     if session_id in info["targets"]:
-        #         status_str = "直播中" if info["last_status"] == 1 else "未开播"
-        #         lines.append(f"- {info['uname']} ({room_id}) [{status_str}]")
-
         for room_id, info in self.subscribed_rooms.items():
             if session_id in info["targets"]:
                 status_str = "🟢 直播中" if info["last_status"] == 1 else "🔴 未开播"
@@ -246,12 +241,22 @@ class BilibiliLivePlugin(Star):
 
                         # 🌟 核心判断：如果上次是 0 (未开播) 或 2 (轮播)，这次变成了 1 (直播中) -> 触发开播提醒
                         if info["last_status"] != 1 and current_status == 1:
+
+                            """当前框架在使用主动消息推送send_message时，无法渲染为markdown格式"""
+                            # notice_text = (
+                            #     f"### 🔔 【直播提醒】您订阅的UP主开播啦！\n"
+                            #     f"- **UP主**: {info['uname']}\n"
+                            #     f"- **直播间标题**: {title}\n\n"
+                            #     f"[🔗 直播间传送门](https://live.bilibili.com/{room_id})"
+                            # )
+
                             notice_text = (
-                                f"### 🔔 【直播提醒】您订阅的UP主开播啦！\n"
-                                f"- **UP主**: {info['uname']}\n"
-                                f"- **直播间标题**: {title}\n\n"
-                                f"[🔗 直播间传送门](https://live.bilibili.com/{room_id})"
+                                f"🔔 【直播提醒】您订阅的UP主开播啦！\n"
+                                f"UP主: {info['uname']}\n"
+                                f"直播间标题: {title}\n"
+                                f"直播间传送门: https://live.bilibili.com/{room_id}"
                             )
+
                             message_chain = MessageChain().message(notice_text)
                             # 循环向所有订阅了该房间的聊天窗口发送通知
                             for target_session_id in info["targets"]:
