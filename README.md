@@ -1,68 +1,108 @@
-# AstrBot Bilibili 直播间订阅插件
+# AstrBot Bilibili 直播订阅插件
 
-一个基于 [AstrBot](https://github.com/Soulter/AstrBot) 机器人框架的轻量级插件。用户只需在聊天框输入 `/sub <room_id>`，机器人在Up主开播后第一时间发送通知。
+适用于 [AstrBot](https://github.com/Soulter/AstrBot) 的直播订阅插件。用户可通过聊天指令订阅 B 站直播间，机器人会在检测到目标直播间进入开播状态后，向对应会话发送通知。
 
-## ✨ 功能特性
+当前文档对应版本：`1.3.8`
 
-- **直播订阅**：通过直播间id订阅直播，开播后将第一时间通知。
-- **一键查询**：支持通过 B 站直播间长号/短号进行查询。
-- **优雅的格式化输出**：直接返回排版整洁的MarkDown格式文本。
+## 功能概览
 
-## 📥 安装方法
+- 支持按直播间房间号订阅与取消订阅。
+- 支持查看当前会话下的订阅列表。
+- 支持查询直播间信息与 UP 主信息。
+- 支持轮询直播状态，并在开播时向订阅会话发送通知。
+- 支持将订阅记录持久化到 `AstrBot/data/bilibili_live_subs.json`。
 
-### 方法一：通过 AstrBot 面板安装
-从链接安装 `https://github.com/learnbrown/astrbot_plugin_bilibili_live`
+## 安装方式
 
-### 方法二：直接放入插件目录
+### 方式一：通过 AstrBot 面板安装
 
-1. 进入你 AstrBot 的插件目录（如果在 Docker 中，请找到你挂载的 `plugins` 目录）。
-2. 执行`git clone https://github.com/learnbrown/astrbot_plugin_bilibili_live.git`
-
-
-
-## 🎮 使用说明
-
-插件成功加载后，在机器人所在的群聊或私聊中发送以下指令：
-
-### 1. 订阅直播间
-
-**指令格式**
+仓库地址：
 
 ```text
-/sub <room_id>       订阅直播间
-/unsub <room_id>     取消订阅
-/sublist             查看已订阅直播间列表
+https://github.com/learnbrown/astrbot_plugin_bilibili_live
 ```
 
-**机器人通知样例**
+### 方式二：手动放入插件目录
 
---- 
-### 🔔 【直播提醒】您订阅的UP主开播啦！
-- **UP主**: 泛式
-- **直播间标题**: 周一工作中  
-[🔗 直播间传送门](https://live.bilibili.com/33989)
---- 
+1. 进入 AstrBot 的插件目录。
+2. 执行以下命令：
 
-### 2. 查询直播间信息
+```bash
+git clone https://github.com/learnbrown/astrbot_plugin_bilibili_live.git
+```
 
-**指令格式**：
+## 指令说明
 
-```/live <room_id>```
+| 指令 | 参数 | 说明 |
+| --- | --- | --- |
+| `/sub <room_id>` | `room_id` | 订阅指定直播间 |
+| `/unsub <room_id>` | `room_id` | 取消订阅指定直播间 |
+| `/sublist` | 无 | 查看当前会话的订阅列表 |
+| `/live <room_id>` | `room_id` | 查询直播间信息 |
+| `/up <uid>` | `uid` | 查询 UP 主信息 |
 
+## 消息示例
 
-### 3. 查询用户信息
+### 命令响应示例
 
-**指令格式**：
+以下内容由 `event.plain_result` 返回，支持 Markdown 渲染：
 
-```/up <uid>```
+```markdown
+### 订阅已生效
 
-## 🛠️ 技术原理
+- 主播：**泛式**
+- 房间号：`33989`
+- 当前状态：未开播
+- 说明：机器人将在状态变更为“直播中”后发送通知。
+```
 
-使用 B 站 api 查询直播间及 Up 主信息
+### 主动通知示例
 
-1. **房间状态**：请求 `https://api.live.bilibili.com/room/v1/Room/get_info?room_id=xxx` 接口获取 `title`、`live_status` 和 Up 主 `uid`。
-2. **Up 主信息**：利用拿到的 `uid` 进一步请求 `https://api.bilibili.com/x/web-interface/card?mid=xxx` 接口获取 Up 主信息
+以下内容由 `self.context.send_message` 主动发送。由于当前框架限制，该类消息暂不支持 Markdown：
 
-## 📝 许可证
+```text
+【B站开播通知】
+主播：泛式
+房间号：33989
+直播标题：周一工作中
+直播链接：https://live.bilibili.com/33989
+```
 
-[MIT License](https://en.wikipedia.org/wiki/MIT_License)
+## 数据存储
+
+订阅信息默认保存到以下位置：
+
+```text
+AstrBot/data/bilibili_live_subs.json
+```
+
+存储内容包含以下信息：
+
+- 直播间房间号
+- 主播名称
+- 上次轮询状态
+- 订阅该直播间的会话标识列表
+
+## 工作机制
+
+插件主要依赖以下 B 站接口：
+
+1. 直播间信息接口  
+   `https://api.live.bilibili.com/room/v1/Room/get_info?room_id=<room_id>`
+2. UP 主信息接口  
+   `https://api.bilibili.com/x/web-interface/card?mid=<uid>`
+
+轮询任务会定期读取订阅记录并查询直播状态。当检测到状态从“非直播中”切换为“直播中”时，插件会向已订阅该直播间的会话发送开播通知。
+
+## 兼容性说明
+
+- 支持 Markdown 的命令响应会优先使用结构化 Markdown 文本输出。
+- 主动推送消息受 AstrBot 当前框架限制，暂时使用纯文本格式发送。
+
+## 变更记录
+
+详细更新请参见 [CHANGELOG.md](./CHANGELOG.md)。
+
+## 许可证
+
+本项目基于 [MIT License](https://en.wikipedia.org/wiki/MIT_License) 发布。
